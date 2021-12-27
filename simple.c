@@ -1,10 +1,10 @@
 # include <stdio.h>
 # include <stdlib.h>
 
-static double NODE_ID;
+static unsigned long long NODE_ID;
 
 typedef struct Node {
-	int id;
+	unsigned long long id;
 	char *data;
 	struct Node *next;
 } Node;
@@ -13,7 +13,7 @@ Node *head;
 Node *tail;
 
 void printNode(Node *n) {
-	printf("Node { id: %d, data: '%s', next: %p }\n", 
+	printf("Node { id: %llu, data: '%s', next: %p }\n", 
 			n->id, n->data, n->next);
 }
 
