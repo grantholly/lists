@@ -39,6 +39,25 @@ Node *push(LinkList *l, char *myData) {
 	return l->head;
 }
 
+Node *insertAtIndex(LinkList *l, char *myData, int idx) {
+	Node *newNode = makeNode(l, myData);
+	Node *current = l->head;
+	Node *previous;
+	int i;
+
+	for (i = 0; i < len(l); i++) {
+		if (i == idx) {
+			previous->next = newNode;
+			newNode->next = current;
+			return newNode;
+		} else {
+			previous = current;
+			current = current->next;
+		}
+	}
+	return NULL;
+}
+
 void printNode(Node *n) {
         printf("Node { id: %llu, data: '%s', next: %p }\n",
                         n->id, n->data, n->next);
@@ -68,6 +87,42 @@ int len(LinkList *l) {
 	return i;
 }
 
+Node *findById(LinkList *l, unsigned long long id) {
+	Node *n = l->head;
+
+	while(n != NULL) {
+		if (n->id == id) {
+			return n;
+		} else {
+			n = n->next;
+		}
+	}
+	return NULL;
+}
+
+Node *findByIndex(LinkList *l, int idx) {
+	Node *n = l->head;
+	int i;
+
+	for (i = 0; i < len(l); i++) {
+		if (i == idx) {
+			return n;
+		} else {
+			n = n->next;
+		}
+	}
+	return NULL;
+}
+
+Node *updateById(LinkList *l, char *myData, unsigned long long id) {
+	Node *n = l->head;
+	while(n->id != id) {
+		n = n->next;
+	}
+	n->data = myData;
+	return n;
+}
+
 // don't forget to free the popped node
 Node *pop(LinkList *l) {
 	Node *n = l->head;
@@ -79,6 +134,32 @@ Node *pop(LinkList *l) {
 	previous->next = n->next;
 	l->tail = previous;
 	return n;
+}
+
+Node *deleteAt(LinkList *l, int idx) {
+	Node *current = l->head;
+	Node *previous;
+	int i;
+	int end = len(l);
+
+	if (idx == 0) {
+		l->head = current->next;
+		return current;
+	}
+
+	if (idx == end) {
+		return pop(l);
+	}
+
+	for (i = 0; i < end; i++) {
+		if (i == idx) {
+			previous->next = current->next;
+			return current;	
+		} else {
+			previous = current;
+			current = current->next;
+		}
+	}
 }
 
 int main () {
@@ -94,14 +175,60 @@ int main () {
 	push(l, "nineth");
 	push(l, "tenth");
 
+	printf("--- made linked list\n");
+	printList(l);
+
+	printf("--- popping nodes off\n");
 	Node *last = pop(l);
-	last = pop(l);
+	printf("popped -> ");
+	printNode(last);
+	free(last);
 	last = pop(l);
 	printf("popped -> ");
 	printNode(last);
+	free(last);
+	last = pop(l);
+	printf("popped -> ");
+	printNode(last);
+	free(last);
 
+	printf("--- updated linked list\n");
 	printList(l);
 	printf("len %d\n", len(l));
+
+	printf("--- findById 6\n");
+	Node *six = findById(l, 6);
+	printNode(six);
+
+	printf("--- findByIndex 2\n");
+	Node *second = findByIndex(l, 2);
+	printNode(second);
+
+	printf("--- insertAtIndex 4 'out of order node'\n");
+	Node *ooo = insertAtIndex(l, "out of order node", 4);
+	printNode(ooo);
+
+	printf("--- updateById 10 'my update'\n");
+	Node *updated = updateById(l, "my update!", 10);
+	printNode(updated);
+
+	printf("--- deleteAt head\n");
+	Node *deletedAt = deleteAt(l, 0);
+	printNode(deletedAt);
+	free(deletedAt);
+
+	printf("--- deleteAt 2\n");
+	Node *secondDelete = deleteAt(l, 1);
+	printNode(secondDelete);
+	free(secondDelete);
+
+	printf("--- deleteAt tail\n");
+	Node *tailDelete = deleteAt(l, len(l));
+	printNode(tailDelete);
+	free(tailDelete);
+
+        printf("--- updated linked list\n");
+        printList(l);
 
 	return 0;
 }
