@@ -2,6 +2,7 @@
 # include <stdio.h>
 
 # define DEFAULT_LIST_SIZE 4
+# define MAX_LIST_USAGE_RATIO 0.9
 
 typedef struct Node {
         unsigned long long id;
@@ -17,6 +18,7 @@ typedef struct NodeList {
 
 typedef struct LinkList {
         unsigned long long node_id;
+	size_t len;
         Node *head;
         Node *tail;
         NodeList *nodes;
@@ -62,6 +64,7 @@ LinkList *makeLinkList() {
 
 	NodeList *nl = makeNodeList(l);
 	l->nodes = nl;
+	l->len = 0;
 	l->head = NULL;
 	l->tail = NULL;
 	return l;
@@ -73,28 +76,25 @@ void printNode(Node *n) {
 
 void printNodeList(NodeList *nl) {
 	printf("NodeList: {\n");
-	printf("\tused: %zu\n", nl->size);
-	printf("\tsize: %zu\n", nl->used);
+	printf("\tused: %zu\n", nl->used);
+	printf("\tsize: %zu\n", nl->size);
 	printf("\tnodes: {\n");
 	for (int i = 0; i < nl->size; i++) {
 		printf("\t\t%p - %s\n", &nl->innerNodes[i], nl->innerNodes[i].data);
-	}
-}
-
-void printLinkList(LinkList *l) {
-	Node *n = l->head;
-	printf("LinkList: {\n\thead: %p\n\ttail: %p\n\tnodes: {\n", l->head, l->tail);
-	while (n != NULL) {
-		printf("\t\t");
-		printNode(n);
-		n = n->next;
 	}
 	printf("\t}\n");
 	printf("}\n");
 }
 
-size_t len(LinkList *l) {
-	return l->nodes->size;
+void printLinkList(LinkList *l) {
+	printf("LinkList: {\n\thead: %p\n\ttail: %p\n\tlen: %zu\n\tnodes: {\n", l->head, l->tail, l->len);
+
+	for (int i = 0; i < l->nodes->used; i++) {
+		printf("\t\t%p - %s\n", &l->nodes->innerNodes[i], l->nodes->innerNodes[i].data);
+	}
+
+	printf("\t}\n");
+	printf("}\n");
 }
 
 // grow when we are 75% full
@@ -118,23 +118,53 @@ void growInnerNodes(NodeList *nl) {
 }
 
 // shrink when we are 75% empty
-void shrinkInnerNodes(Node *nl) {}
+void shrinkInnerNodes(NodeList *nl) {
+	int i;
+	size_t newSize = nl->size / 2;
 
-void insertNode(NodeList *nl, Node *newNode) {
-	// need this to more reliably check
-	if (nl->used > nl->size / 2) {
-		printf("we need to grow\n");
-		growInnerNodes(nl);
+	Node *newList = (Node*) malloc(sizeof(Node) * newSize);
+
+	if (newList == NULL) {
+		fprintf(stderr, "not enough memory to creat inner node list");
+		exit(1);
+	}
+	
+	for (i = 0; i < newSize; i++) {
+		newList[i] = nl->innerNodes[i];
 	}
 
-	nl->innerNodes[nl->used] = *newNode;
-	nl->used++;
+	free(nl->innerNodes);
+	nl->innerNodes = newList;
+	nl->size = newSize;
+}
+
+// make this operate on a LinkList
+void insertNode(LinkList *l, Node *newNode) {
+	float usageRatio = (float)l->nodes->used / (float)l->nodes->size;
+
+	if (usageRatio >= MAX_LIST_USAGE_RATIO) {
+		printf("we need to grow. used -> %zu, size -> %zu\n", l->nodes->used, l->nodes->size);
+	        printf("usage ratio: %f\n", usageRatio);
+		growInnerNodes(l->nodes);
+	} else {
+		printf("inserting node\n");
+	}
+
+	if (l->head == NULL) {
+		l->head = &l->nodes->innerNodes[0];
+	}
+
+	l->nodes->innerNodes[l->nodes->used] = *newNode;
+	l->nodes->used++;
+	l->len++;
+	l->tail = &l->nodes->innerNodes[l->nodes->used];
 }
 
 void setNodeId(LinkList *l, Node *n) {
 	n->id = ++l->node_id;
 }
 
+// not used
 void push(LinkList *l, char *myData) {
 	Node *previousHead = l->head;
 	Node *newHead = makeNode(myData);
@@ -146,23 +176,73 @@ void push(LinkList *l, char *myData) {
 		l->tail = newHead;
 	}
 
-	insertNode(l->nodes, newHead);
+	insertNode(l, newHead);
+}
+
+// up to caller to free the returned node
+Node *pop(LinkList *l) {
+	Node *oldTail = l->tail;
+
+	l->tail = &l->nodes->innerNodes[l->nodes->used - 1];
+	l->nodes->used--;
+	return oldTail;
+}
+
+Node *popNode(LinkList *l) {
+	Node *n = pop(l);
+	l->nodes->used--;
+	size_t newSize = l->nodes->size / 2;
+        float usageRatio = (float)l->nodes->used / (float)l->nodes->size;
+
+	printf("usageRatio of %f\n", usageRatio);
+
+        // check if `newSize` goes to 0
+        // if so, then use the DEFAULT_LIST_SIZE
+        if (usageRatio <= 0.25) {
+		printf("shrinking down\n");
+		if (newSize <= DEFAULT_LIST_SIZE) {
+			printf("using minimum size of %d\n", DEFAULT_LIST_SIZE);
+		}
+		shrinkInnerNodes(l->nodes);
+	}
+
+	return n;
 }
 
 int main () {
-	NodeList *nl = makeNodeList();
+	LinkList *l = makeLinkList();
 	printf("--- starting with this\n");
-	printNodeList(nl);
+	printNodeList(l->nodes);
+	/*
 	Node *n0 = makeNode("first data");
 	Node *n1 = makeNode("second thing");
 	Node *n2 = makeNode("third stuff");
 	Node *n3 = makeNode("forth cosa");
-	insertNode(nl, n0);
-	insertNode(nl, n1);
-	insertNode(nl, n2);
-	insertNode(nl, n3);
-	printf("--- after insert\n");
-	printNodeList(nl);
+	Node *n4 = makeNode("fifth time around");
+	insertNode(l, n0);
+	insertNode(l, n1);
+	insertNode(l, n2);
+	insertNode(l, n3);
+	insertNode(l, n4);
+	*/
 
+	int numInserts = 8;
+	for (int i = 0; i < numInserts; i++) {
+		char *nodeData;
+		sprintf(nodeData, "node #%d", i);
+		Node *n = makeNode(nodeData);
+		printNode(n);
+		insertNode(l, n);
+	}
+
+	printf("%s\n", l->nodes->innerNodes[2].data);
+
+	printf("--- after insert\n");
+	printNodeList(l->nodes);
+	printf("--- popping some nodes\n");
+	popNode(l);
+
+	printLinkList(l);
+	printNodeList(l->nodes);
 	return 0;
 }
